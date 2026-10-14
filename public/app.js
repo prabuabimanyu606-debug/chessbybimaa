@@ -3,9 +3,23 @@ import { newState, apply, allLegal, inCheck, kingSq, legal, colorOf, isW, moveSt
 const $ = id => document.getElementById(id);
 const API = '/.netlify/functions/api';
 const SCRS = ['scr-menu', 'scr-auth', 'scr-home', 'scr-search', 'scr-game'];
-const GLYPH = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
+const LETTER = { k: 'K', q: 'Q', r: 'R', b: 'B', n: 'N', p: 'P' };
 const NAMA_BIDAK = { q: 'Menteri', r: 'Benteng', b: 'Gajah', n: 'Kuda' };
-const glyph = p => GLYPH[p.toLowerCase()] + '\uFE0E';
+
+/* Bidak digambar sebagai lingkaran berwarna dengan huruf.
+   Tidak memakai simbol catur Unicode, karena banyak HP/tablet menampilkannya
+   sebagai emoji abu-abu sehingga warna putih/hitam tidak terlihat. */
+const style = document.createElement('style');
+style.textContent = `
+.pc{width:76%;height:76%;aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:calc(var(--s)/8*.34);line-height:1;box-shadow:0 2px 4px rgba(0,0,0,.45);user-select:none}
+.pw{background:#ffffff;color:#111418;border:3px solid #111418}
+.pb{background:#15181d;color:#ffffff;border:3px solid #e9eef5}
+#promo button.pc{width:clamp(56px,17vw,80px);height:clamp(56px,17vw,80px);margin:3px;font-size:clamp(22px,6vw,32px);font-family:Arial,Helvetica,sans-serif;font-weight:700;cursor:pointer;border-radius:50%;padding:0}
+#promo button.pw{background:#ffffff;color:#111418;border:3px solid #111418}
+#promo button.pb{background:#15181d;color:#ffffff;border:3px solid #e9eef5}
+#promo button.pc:hover,#promo button.pc:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+`;
+document.head.appendChild(style);
 
 const boardEl = $('board');
 const optsEl = $('opts');
@@ -14,6 +28,12 @@ for (let i = 0; i < 64; i++) {
   d.addEventListener('click', () => clickSq(i));
   boardEl.appendChild(d);
 }
+
+const legenda = document.createElement('p');
+legenda.id = 'legenda';
+legenda.className = 'kosong';
+legenda.textContent = 'K Raja · Q Menteri · R Benteng · B Gajah · N Kuda · P Pion';
+$('scr-game').insertBefore(legenda, $('gmsg'));
 
 let SES = null;      // { token, user: { id, name } }
 let V = null;        // tampilan permainan aktif (lokal atau online)
@@ -353,10 +373,11 @@ function tampilPromosi(list) {
   const putih = V.S.turn === 'w';
   for (const q of 'qrbn') {
     const bt = document.createElement('button');
-    bt.textContent = glyph(q);
-    bt.style.color = putih ? '#fff' : '#15181d';
-    bt.style.textShadow = putih ? '0 0 2px #000,0 0 2px #000' : 'none';
+    bt.type = 'button';
+    bt.className = 'pc ' + (putih ? 'pw' : 'pb');
+    bt.textContent = LETTER[q];
     bt.setAttribute('aria-label', NAMA_BIDAK[q]);
+    bt.title = NAMA_BIDAK[q];
     bt.onclick = () => { const m = list.find(x => x.promo === q); if (m) langkah(m); };
     optsEl.appendChild(bt);
   }
@@ -423,7 +444,7 @@ function render() {
     if (m) cls.push('hint', (p || m.ep) ? 'cap' : '');
     if (chk && i === ks) cls.push('chk');
     d.className = cls.filter(Boolean).join(' ');
-    d.innerHTML = p ? `<span class="${isW(p) ? 'w' : 'b'}">${glyph(p)}</span>` : '';
+    d.innerHTML = p ? `<span class="pc ${isW(p) ? 'pw' : 'pb'}">${LETTER[p.toLowerCase()]}</span>` : '';
   }
   $('status').textContent = statusText(over, chk);
   $('vs').textContent = (V.mode === 'online' && V.loaded && V.myColor)
