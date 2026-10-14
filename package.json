@@ -1,0 +1,8 @@
+{
+  "name": "catur-online",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@netlify/blobs": "latest"
+  }
+}
