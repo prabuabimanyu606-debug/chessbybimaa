@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Catur</title>
+<style>
+:root{--s:min(94vw,calc(100vh - 250px),620px);--ink:#e9eef5;--bg:#14181f;--lt:#dfe6ee;--dk:#6b86a3;--acc:#e8b94a;--mut:#8d9aab;--err:#ff8a80;--line:#3a4555;--card:#1b222c}
+@supports(height:100dvh){:root{--s:min(94vw,calc(100dvh - 250px),620px)}}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%}
+body{background:var(--bg);color:var(--ink);font-family:"Iowan Old Style",Palatino,"Palatino Linotype",Georgia,serif;display:flex;justify-content:center;align-items:center;padding:env(safe-area-inset-top,0px) 12px env(safe-area-inset-bottom,0px);-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+input{user-select:text;-webkit-user-select:text}
+.scr{display:flex;flex-direction:column;align-items:center;gap:14px;width:100%;max-width:520px;padding:28px 0}
+#scr-game{max-width:660px}
+.hidden{display:none!important}
+h1{font-size:2rem;font-weight:600}
+h2{font-size:1rem;font-weight:600;color:var(--mut);align-self:stretch;margin-top:8px}
+.btn{font:inherit;font-size:1.05rem;padding:11px 18px;min-width:200px;border:1px solid var(--acc);background:var(--acc);color:#15181d;border-radius:6px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+.btn:disabled{opacity:.5;cursor:default}
+.link{font:inherit;background:none;border:none;color:var(--mut);text-decoration:underline;cursor:pointer;padding:6px}
+.tabs{display:flex;gap:8px}
+.tabs button{font:inherit;padding:8px 16px;border-radius:6px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+.tabs button.on{background:#2a3340;border-color:var(--acc)}
+form{display:flex;flex-direction:column;align-items:center;gap:10px;width:100%}
+input[type=text],input[type=password]{font:inherit;font-size:1rem;padding:10px 12px;width:100%;max-width:340px;background:#0f1319;color:var(--ink);border:1px solid var(--line);border-radius:6px}
+input:focus-visible,button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.msg{min-height:1.4em;color:var(--err);text-align:center;font-size:.95rem;max-width:90%}
+.list{list-style:none;width:100%;display:flex;flex-direction:column;gap:8px}
+.list li{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);padding:10px 12px;border-radius:6px}
+.list li button{font:inherit;padding:7px 14px;border-radius:6px;border:1px solid var(--acc);background:var(--acc);color:#15181d;cursor:pointer}
+.list li button:disabled{opacity:.5;cursor:default}
+.sub{color:var(--mut);font-size:.88rem}
+.kosong{color:var(--mut);font-size:.95rem;text-align:center}
+#status{font-size:1.15rem;min-height:1.6em;text-align:center;padding:0 12px}
+#vs{color:var(--mut);font-size:.92rem;text-align:center;min-height:1.2em}
+#board{width:var(--s);height:var(--s);display:grid;grid-template:repeat(8,1fr)/repeat(8,1fr);border:5px solid #2a3340;box-shadow:0 10px 30px rgba(0,0,0,.5);touch-action:manipulation}
+.sq{position:relative;display:flex;align-items:center;justify-content:center;font-size:calc(var(--s)/8*.78);line-height:1;cursor:pointer;font-family:"Segoe UI Symbol","Noto Sans Symbols 2","DejaVu Sans","Apple Symbols",sans-serif}
+.l{background:var(--lt)}.d{background:var(--dk)}
+.w{color:#fff;text-shadow:0 0 2px #000,0 0 2px #000,0 1px 1px #000}
+.b{color:#15181d;text-shadow:0 0 1px rgba(255,255,255,.7)}
+.sel{box-shadow:inset 0 0 0 4px var(--acc)}
+.chk{box-shadow:inset 0 0 0 100px rgba(214,48,40,.6)}
+.hint::after{content:"";position:absolute;width:30%;height:30%;border-radius:50%;background:rgba(20,70,50,.6);pointer-events:none}
+.hint.cap::after{width:92%;height:92%;background:none;border:4px solid rgba(20,70,50,.65)}
+#promo{position:fixed;inset:0;background:rgba(10,12,16,.75);display:none;align-items:center;justify-content:center;z-index:5}
+#promo.on{display:flex}
+#promo div{background:#222b38;padding:18px;border-radius:6px;text-align:center}
+#promo p{margin-bottom:12px}
+#promo button{width:clamp(56px,17vw,80px);height:clamp(56px,17vw,80px);margin:3px;font-size:clamp(36px,11vw,54px);background:var(--lt);border:2px solid transparent;border-radius:4px;cursor:pointer;line-height:1;font-family:"Segoe UI Symbol","Noto Sans Symbols 2","DejaVu Sans","Apple Symbols",sans-serif}
+#promo button:focus-visible,#promo button:hover{border-color:var(--acc);outline:none}
+.menu-item{position:relative;display:inline-block}
+.badge{position:absolute;top:-10px;right:-12px;background:#ff6b5b;color:#fff;font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+</style>
+</head>
+<body>
+
+<section id="scr-menu" class="scr">
+  <h1>Catur</h1>
+  <button id="b-lokal" class="btn">Main lokal</button>
+  <button id="b-jauh" class="btn">Main jarak jauh</button>
+  <div class="menu-item">
+    <button id="b-ai" class="btn">AI Player</button>
+    <span class="badge">New Feature!</span>
+  </div>
+  <p id="menu-msg" class="msg"></p>
+</section>
+
+<section id="scr-auth" class="scr hidden">
+  <h1>Akun</h1>
+  <div class="tabs">
+    <button id="t-masuk" class="on" type="button">Masuk</button>
+    <button id="t-daftar" type="button">Daftar</button>
+  </div>
+  <form id="f-auth" autocomplete="off">
+    <input id="i-user" type="text" placeholder="Nama pengguna" maxlength="20" autocomplete="username" autocapitalize="off" spellcheck="false">
+    <input id="i-pass" type="password" placeholder="Kata sandi" autocomplete="current-password">
+    <button id="b-auth" class="btn" type="submit">Masuk</button>
+  </form>
+  <p id="auth-msg" class="msg"></p>
+  <button id="b-auth-back" class="link" type="button">Kembali</button>
+</section>
+
+<section id="scr-ai" class="scr hidden">
+  <h1>AI Player</h1>
+  <p class="kosong">Anda bermain sebagai Putih. Pilih tingkat kesulitan:</p>
+  <button class="btn" data-level="easy">Easy</button>
+  <button class="btn" data-level="medium">Medium</button>
+  <button class="btn" data-level="hard">Hard</button>
+  <button class="btn" data-level="expert">Expert</button>
+  <button id="b-ai-back" class="link" type="button">Kembali</button>
+</section>
+
+<section id="scr-home" class="scr hidden">
+  <p>Masuk sebagai <strong id="me-name"></strong></p>
+  <button id="b-cari" class="btn">Cari pemain</button>
+  <button id="b-keluar" class="btn ghost">Keluar</button>
+  <h2>Permainan saya</h2>
+  <ul id="list-games" class="list"></ul>
+  <p id="home-kosong" class="kosong">Belum ada permainan. Tekan Cari pemain untuk duel.</p>
+  <p id="home-msg" class="msg"></p>
+  <button id="b-home-back" class="link" type="button">Kembali</button>
+</section>
+
+<section id="scr-search" class="scr hidden">
+  <h1>Pemain</h1>
+  <input id="i-cari" type="text" placeholder="Cari nama pemain" autocapitalize="off" spellcheck="false">
+  <ul id="list-users" class="list"></ul>
+  <p id="cari-msg" class="kosong"></p>
+  <button id="b-search-back" class="link" type="button">Kembali</button>
+</section>
+
+<section id="scr-game" class="scr hidden">
+  <div id="status"></div>
+  <div id="vs"></div>
+  <div id="board"></div>
+  <p id="gmsg" class="msg"></p>
+  <button id="b-game-back" class="link" type="button">Kembali</button>
+</section>
+
+<div id="promo"><div><p>Pilih bidak promosi</p><span id="opts"></span></div></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
