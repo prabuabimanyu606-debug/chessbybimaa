@@ -3,7 +3,28 @@ import { chooseMove, LEVELS } from './chess-ai.mjs';
 
 const $ = id => document.getElementById(id);
 const API = '/.netlify/functions/api';
-const SCRS = ['scr-menu', 'scr-auth', 'scr-home', 'scr-search', 'scr-game', 'scr-ai'];
+
+/* Pusher: sinyal langsung saat lawan jalan. Kunci diambil dari server (aksi 'config'). */
+let PUSHER = null;
+async function loadRealtime() {
+  try {
+    const r = await fetch(API, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'config' }) });
+    const cfg = await r.json();
+    if (!cfg.pusherKey || !cfg.pusherCluster) return;
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://js.pusher.com/8.4.0/pusher.min.js';
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+    PUSHER = new window.Pusher(cfg.pusherKey, { cluster: cfg.pusherCluster });
+  } catch {
+    PUSHER = null;
+  }
+}
+loadRealtime();
+const SCRS = ['scr-menu', 'scr-auth', 'scr-home', 'scr-search', 'scr-game', 'scr-ai', 'scr-profile'];
 const GLYPH = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
 const glyph = p => GLYPH[p.toLowerCase()] + '\uFE0E';
 const NAMA_BIDAK = { q: 'Menteri', r: 'Benteng', b: 'Gajah', n: 'Kuda' };
@@ -47,6 +68,7 @@ function simpanSesi(v) {
 
 function show(id) {
   for (const s of SCRS) $(s).classList.toggle('hidden', s !== id);
+  if (id !== 'scr-game') document.body.classList.remove('bg-w', 'bg-b');
 }
 
 /* ===== Panggilan API ===== */
@@ -127,6 +149,67 @@ function aiGiliran() {
     render();
   }, 60);
 }
+
+/* ===== Profil & ganti nama (maksimal 3 kali, dijaga di server) ===== */
+function tampilProfil(renamesLeft) {
+  $('p-name').textContent = SES.user.name;
+  $('p-login').textContent = SES.user.id;
+  if (renamesLeft === undefined) {
+    $('p-left').textContent = 'Memuat…';
+    $('b-rename').disabled = true;
+    return;
+  }
+  const habis = renamesLeft <= 0;
+  $('p-left').textContent = habis
+    ? 'Batas ganti nama sudah habis (3x).'
+    : `Sisa ganti nama: ${renamesLeft} kali.`;
+  $('b-rename').disabled = habis;
+}
+
+async function bukaProfil() {
+  stopHome();
+  show('scr-profile');
+  $('p-msg').textContent = '';
+  $('f-rename').classList.add('hidden');
+  tampilProfil(undefined);
+  try {
+    const out = await api('profile');
+    simpanSesi({ token: SES.token, user: out.user });
+    tampilProfil(out.renamesLeft);
+  } catch (e) {
+    if (!e.authGone) $('p-msg').textContent = e.message;
+  }
+}
+
+$('b-profil').onclick = () => bukaProfil();
+$('b-profil-back').onclick = () => bukaBeranda();
+$('b-rename').onclick = () => {
+  $('p-msg').textContent = '';
+  $('f-rename').classList.remove('hidden');
+  $('i-rename').value = '';
+  $('i-rename').focus();
+};
+$('b-rename-cancel').onclick = () => {
+  $('f-rename').classList.add('hidden');
+  $('p-msg').textContent = '';
+};
+$('f-rename').addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = $('i-rename').value.trim();
+  $('b-rename-save').disabled = true;
+  $('p-msg').textContent = 'Menyimpan…';
+  try {
+    const out = await api('rename', { name });
+    simpanSesi({ token: SES.token, user: out.user });
+    $('f-rename').classList.add('hidden');
+    $('p-msg').textContent = 'Nama berhasil diganti.';
+    tampilProfil(out.renamesLeft);
+  } catch (err) {
+    if (!err.authGone) $('p-msg').textContent = err.message;
+  } finally {
+    $('b-rename-save').disabled = false;
+  }
+});
 
 /* ===== Masuk / Daftar ===== */
 function setTab(t) {
@@ -272,7 +355,7 @@ function renderUsers() {
     nm.textContent = u.name;
     const b = document.createElement('button');
     b.textContent = 'Duel';
-    b.onclick = () => duel(u, b);
+    b.onclick = () => bukaWaktu(u);
     li.append(nm, b);
     ul.appendChild(li);
   }
@@ -281,16 +364,32 @@ function renderUsers() {
 $('i-cari').addEventListener('input', renderUsers);
 $('b-search-back').onclick = () => bukaBeranda();
 
-async function duel(lawan, btn) {
-  btn.disabled = true;
+let PENDING_LAWAN = null;
+function bukaWaktu(lawan) {
+  PENDING_LAWAN = lawan;
+  $('time-modal').classList.remove('hidden');
+}
+function tutupWaktu() {
+  PENDING_LAWAN = null;
+  $('time-modal').classList.add('hidden');
+}
+document.querySelectorAll('[data-min]').forEach(b => {
+  b.onclick = () => {
+    const lawan = PENDING_LAWAN;
+    const menit = Number(b.dataset.min);
+    tutupWaktu();
+    if (lawan) duel(lawan, menit);
+  };
+});
+$('b-time-cancel').onclick = tutupWaktu;
+
+async function duel(lawan, timeMin) {
+  $('cari-msg').textContent = 'Membuat duel…';
   try {
-    const out = await api('duel', { opponentId: lawan.id });
+    const out = await api('duel', { opponentId: lawan.id, timeMin });
     bukaGame(out.gid);
   } catch (e) {
-    if (!e.authGone) {
-      $('cari-msg').textContent = 'Duel gagal dibuat. ' + e.message;
-      btn.disabled = false;
-    }
+    if (!e.authGone) $('cari-msg').textContent = 'Duel gagal dibuat. ' + e.message;
   }
 }
 
@@ -299,10 +398,11 @@ function baruView(mode, gid) {
   return {
     mode, gid,
     myColor: null, oppName: '',
-    hist: [], S: newState(), sel: -1, targets: [], pend: null,
+    hist: [], confirmed: [], pending: null, S: newState(), sel: -1, targets: [], pend: null,
     busy: false, bad: false, over: false, loaded: mode === 'local' || mode === 'ai',
     timer: null, tick: null, fetching: false, again: false,
     aiTimer: null, aiThinking: false, level: null,
+    clock: null, clockAt: 0, clockTimer: null, timeoutSent: false, offer: null, end: null,
   };
 }
 
@@ -330,14 +430,21 @@ function bukaGame(gid) {
     if (V !== view) return;
     if (view.fetching) { view.again = true; return; }
     view.fetching = true;
-    const start = view.hist.length;
+    const start = view.confirmed.length;
     try {
       const out = await api('game', { gid, have: start });
       if (V !== view) return;
       view.myColor = out.game.myColor;
       view.oppName = out.game.oppName;
-      setHist(view.hist.slice(0, start).concat(out.moves));
-      $('gmsg').textContent = '';
+      view.clock = out.clock;
+      view.clockAt = Date.now();
+      view.offer = out.offer;
+      view.end = out.end;
+      view.confirmed = view.confirmed.slice(0, start).concat(out.moves);
+      if (view.pending && view.confirmed.length > view.pending.index) view.pending = null;
+      setHist(view.pending ? view.confirmed.concat([view.pending.str]) : view.confirmed);
+      render();
+      renderClock();
     } catch (e) {
       if (V === view && !e.authGone) {
         $('gmsg').textContent = e.message;
@@ -351,11 +458,20 @@ function bukaGame(gid) {
 
   view.tick = tick;
   tick();
-  view.timer = setInterval(tick, 1500);
+  view.clockTimer = setInterval(renderClock, 500);
+  if (PUSHER) {
+    view.channel = PUSHER.subscribe('game-' + gid);
+    view.channel.bind('move', () => { if (V === view && view.tick) view.tick(); });
+    view.timer = setInterval(tick, 5000);   // cadangan jika sinyal terlewat
+  } else {
+    view.timer = setInterval(tick, 1500);
+  }
 }
 
 function stopGame() {
   if (V && V.timer) clearInterval(V.timer);
+  if (V && V.clockTimer) clearInterval(V.clockTimer);
+  if (V && V.channel && PUSHER) PUSHER.unsubscribe('game-' + V.gid);
   if (V && V.aiTimer) clearTimeout(V.aiTimer);
   V = null;
   $('promo').classList.remove('on');
@@ -379,7 +495,7 @@ function giliranSaya() {
 }
 
 function clickSq(i) {
-  if (!V || V.busy || V.over || V.bad || V.pend || !V.loaded || !giliranSaya()) return;
+  if (!V || V.busy || V.over || V.end || V.bad || V.pend || !V.loaded || !giliranSaya()) return;
   const cocok = V.targets.filter(m => m.to === i);
   if (V.sel >= 0 && cocok.length) {
     if (cocok[0].promo) { tampilPromosi(cocok); return; }
@@ -425,7 +541,8 @@ function langkah(m) {
     render();
     if (V.mode === 'ai') aiGiliran();
   } else {
-    render();
+    V.pending = { str, index: V.confirmed.length };
+    setHist(V.confirmed.concat([str]));
     kirimLangkah(str);
   }
 }
@@ -434,22 +551,41 @@ async function kirimLangkah(str) {
   const view = V;
   view.busy = true;
   $('gmsg').textContent = '';
-  render();
   try {
-    await api('move', { gid: view.gid, move: str });
+    const out = await api('move', { gid: view.gid, move: str });
+    if (V === view && view.pending && view.pending.str === str) {
+      if (out.ply === view.confirmed.length) {
+        view.confirmed = view.confirmed.concat([str]);   // server sudah menyimpan di urutan yang benar
+        view.pending = null;
+        setHist(view.confirmed);
+      } else if (view.tick) {
+        view.tick();   // urutan tidak cocok: sinkron ulang dari server
+      }
+    }
   } catch (e) {
-    if (V === view && !e.authGone) $('gmsg').textContent = e.message;
+    if (V === view && !e.authGone) {
+      $('gmsg').textContent = e.message;
+      if (view.pending && view.pending.str === str) view.pending = null;
+      setHist(view.confirmed);   // batalkan langkah yang ditolak
+      if (view.tick) view.tick();
+    }
   } finally {
     view.busy = false;
-    if (V === view) {
-      render();
-      if (view.tick) view.tick();   // selalu sinkron ulang dari server setelah mencoba mengirim
-    }
+    if (V === view) render();
   }
+}
+
+function statusEnd() {
+  const e = V.end, me = V.myColor;
+  if (e.result === 'draw') return 'Remis disepakati.';
+  if (e.result === 'resign') return e.winner === me ? 'Lawan menyerah. Anda menang.' : 'Anda menyerah. Lawan menang.';
+  if (e.result === 'timeout') return e.winner === me ? 'Waktu lawan habis. Anda menang.' : 'Waktu Anda habis. Lawan menang.';
+  return null;
 }
 
 function statusText(over, chk) {
   if (V.mode === 'online' && !V.loaded) return 'Memuat permainan…';
+  if (V.mode === 'online' && V.end && statusEnd()) return statusEnd();
   if (V.bad) return 'Data permainan rusak. Kembali lalu buka lagi.';
   if (V.mode === 'ai') {
     if (over) return chk ? `Skakmat! ${V.S.turn === 'w' ? 'AI' : 'Anda'} menang` : 'Seri: stalemate (pat)';
@@ -481,6 +617,22 @@ function render() {
     d.className = cls.filter(Boolean).join(' ');
     d.innerHTML = p ? `<span class="${isW(p) ? 'w' : 'b'}">${glyph(p)}</span>` : '';
   }
+  document.body.classList.toggle('bg-w', S.turn === 'w');
+  document.body.classList.toggle('bg-b', S.turn === 'b');
+  const online = V.mode === 'online' && V.loaded && V.myColor;
+  $('clock').classList.toggle('hidden', !online);
+  $('draw-row').classList.toggle('hidden', !online);
+  if (online) {
+    const aktif = !V.end && !V.over;
+    const ada = V.offer && V.offer.status === 'open';
+    const milikSaya = ada && V.offer.by === V.myColor;
+    const dariLawan = ada && V.offer.by !== V.myColor;
+    const ditolak = V.offer && V.offer.status === 'declined';
+    $('b-draw').disabled = !aktif || !!V.offer;
+    $('b-draw').classList.toggle('hidden', !aktif);
+    $('draw-prompt').classList.toggle('hidden', !(dariLawan && aktif));
+    $('draw-msg').textContent = milikSaya ? 'Menunggu jawaban lawan…' : (ditolak ? 'Lawan menolak remis.' : '');
+  }
   $('status').textContent = statusText(over, chk);
   if (V.mode === 'ai') {
     $('vs').textContent = `Anda: Putih · Lawan: AI ${LEVELS[V.level].label}`;
@@ -491,8 +643,55 @@ function render() {
   }
 }
 
-$('b-game-back').onclick = () => {
+function sisaWaktu(side) {
+  if (!V.clock) return 0;
+  let ms = V.clock[side];
+  if (!V.end && V.clock.turn === side) ms -= (Date.now() - V.clockAt);
+  return Math.max(0, ms);
+}
+function fmtWaktu(ms) {
+  const d = Math.ceil(ms / 1000);
+  return String(Math.floor(d / 60)).padStart(2, '0') + ':' + String(d % 60).padStart(2, '0');
+}
+function renderClock() {
+  if (!V || V.mode !== 'online' || !V.loaded || !V.myColor || !V.clock) return;
+  const lawan = V.myColor === 'w' ? 'b' : 'w';
+  $('clock').textContent = `Anda ${fmtWaktu(sisaWaktu(V.myColor))} · Lawan ${fmtWaktu(sisaWaktu(lawan))}`;
+  if (!V.end && !V.timeoutSent && sisaWaktu(V.clock.turn) <= 0) {
+    V.timeoutSent = true;
+    const view = V;
+    api('timeout', { gid: view.gid })
+      .then(() => { if (V === view && view.tick) view.tick(); })
+      .catch(() => { view.timeoutSent = false; });
+  }
+}
+
+async function kirimRemis(aksi) {
+  const view = V;
+  $('gmsg').textContent = '';
+  try {
+    await api(aksi, { gid: view.gid });
+  } catch (e) {
+    if (V === view && !e.authGone) $('gmsg').textContent = e.message;
+  } finally {
+    if (V === view && view.tick) view.tick();
+  }
+}
+$('b-draw').onclick = () => kirimRemis('offerDraw');
+$('b-draw-yes').onclick = () => kirimRemis('acceptDraw');
+$('b-draw-no').onclick = () => kirimRemis('declineDraw');
+
+$('b-game-back').onclick = async () => {
   const online = V && V.mode === 'online';
+  if (online && V.loaded && !V.end && !V.over) {
+    if (!window.confirm('Kembali sama dengan menyerah. Yakin keluar dari permainan?')) return;
+    try {
+      await api('resign', { gid: V.gid });
+    } catch (e) {
+      if (e.authGone) return;
+      if (e.status !== 409) { $('gmsg').textContent = e.message; return; }
+    }
+  }
   stopGame();
   $('gmsg').textContent = '';
   if (online) bukaBeranda();
