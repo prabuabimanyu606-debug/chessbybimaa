@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Catur Oleh Bimbomm</title>
+<title>CaturBIMBOM</title>
 <style>
 :root{--s:min(94vw,calc(100vh - 250px),620px);--ink:#e9eef5;--bg:#14181f;--lt:#dfe6ee;--dk:#6b86a3;--acc:#e8b94a;--mut:#8d9aab;--err:#ff8a80;--line:#3a4555;--card:#1b222c}
 @supports(height:100dvh){:root{--s:min(94vw,calc(100dvh - 250px),620px)}}
@@ -52,6 +52,14 @@ input:focus-visible,button:focus-visible{outline:2px solid var(--acc);outline-of
 #promo button:focus-visible,#promo button:hover{border-color:var(--acc);outline:none}
 .menu-item{position:relative;display:inline-block}
 .badge{position:absolute;top:-10px;right:-12px;background:#ff6b5b;color:#fff;font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.overlay{position:fixed;inset:0;background:rgba(10,12,16,.75);display:flex;align-items:center;justify-content:center;z-index:6}
+.dialog{background:#222b38;color:#e9eef5;padding:18px;border-radius:8px;display:flex;flex-direction:column;align-items:center;gap:10px;min-width:240px}
+.clock{font-size:1.05rem;font-variant-numeric:tabular-nums;color:var(--ink);text-align:center}
+.draw-row{display:flex;flex-direction:column;align-items:center;gap:8px}
+.draw-prompt{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+body.bg-w{--bg:#f4f1ea;--ink:#15181d;--mut:#4a5566;--line:#b8c0cc;--card:#e4e7ec}
+body.bg-b{--bg:#0d0f13;--ink:#e9eef5;--mut:#8d9aab;--line:#3a4555;--card:#1b222c}
+body{transition:background-color .3s}
 </style>
 </head>
 <body>
@@ -60,10 +68,7 @@ input:focus-visible,button:focus-visible{outline:2px solid var(--acc);outline-of
   <h1>Catur</h1>
   <button id="b-lokal" class="btn">Main lokal</button>
   <button id="b-jauh" class="btn">Main jarak jauh</button>
-  <div class="menu-item">
-    <button id="b-ai" class="btn">AI Player</button>
-    <span class="badge">New Feature!</span>
-  </div>
+  <button id="b-ai" class="btn">AI Player</button>
   <p id="menu-msg" class="msg"></p>
 </section>
 
@@ -92,9 +97,28 @@ input:focus-visible,button:focus-visible{outline:2px solid var(--acc);outline-of
   <button id="b-ai-back" class="link" type="button">Kembali</button>
 </section>
 
+<section id="scr-profile" class="scr hidden">
+  <h1>Profil</h1>
+  <p>Nama tampilan: <strong id="p-name"></strong></p>
+  <p>Nama pengguna untuk masuk: <strong id="p-login"></strong></p>
+  <div class="menu-item">
+    <button id="b-rename" class="btn">Ganti nama</button>
+    <span class="badge">New Feature!</span>
+  </div>
+  <p id="p-left" class="kosong"></p>
+  <form id="f-rename" class="hidden" autocomplete="off">
+    <input id="i-rename" type="text" placeholder="Nama baru" maxlength="20" autocapitalize="off" spellcheck="false">
+    <button id="b-rename-save" class="btn" type="submit">Simpan</button>
+    <button id="b-rename-cancel" class="link" type="button">Batal</button>
+  </form>
+  <p id="p-msg" class="msg"></p>
+  <button id="b-profil-back" class="link" type="button">Kembali</button>
+</section>
+
 <section id="scr-home" class="scr hidden">
   <p>Masuk sebagai <strong id="me-name"></strong></p>
   <button id="b-cari" class="btn">Cari pemain</button>
+  <button id="b-profil" class="btn">Profil</button>
   <button id="b-keluar" class="btn ghost">Keluar</button>
   <h2>Permainan saya</h2>
   <ul id="list-games" class="list"></ul>
@@ -114,10 +138,29 @@ input:focus-visible,button:focus-visible{outline:2px solid var(--acc);outline-of
 <section id="scr-game" class="scr hidden">
   <div id="status"></div>
   <div id="vs"></div>
+  <div id="clock" class="clock hidden"></div>
   <div id="board"></div>
+  <div id="draw-row" class="draw-row hidden">
+    <button id="b-draw" class="btn ghost" type="button">Tawarkan remis</button>
+    <div id="draw-prompt" class="draw-prompt hidden">
+      <span>Lawan menawarkan remis.</span>
+      <button id="b-draw-yes" class="btn" type="button">Terima</button>
+      <button id="b-draw-no" class="btn ghost" type="button">Tolak</button>
+    </div>
+    <p id="draw-msg" class="kosong"></p>
+  </div>
   <p id="gmsg" class="msg"></p>
   <button id="b-game-back" class="link" type="button">Kembali</button>
 </section>
+
+<div id="time-modal" class="overlay hidden">
+  <div class="dialog">
+    <p>Pilih waktu permainan</p>
+    <button class="btn" data-min="10" type="button">10 menit (Standar)</button>
+    <button class="btn" data-min="30" type="button">30 menit (Lama)</button>
+    <button id="b-time-cancel" class="link" type="button">Batal</button>
+  </div>
+</div>
 
 <div id="promo"><div><p>Pilih bidak promosi</p><span id="opts"></span></div></div>
 
